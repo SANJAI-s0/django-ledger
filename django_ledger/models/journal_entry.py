@@ -453,6 +453,18 @@ class JournalEntryModelAbstract(CreateUpdateMixIn):
         return self.ledger.entity.slug
 
     @property
+    def entity_model(self) -> EntityModel:
+        """
+        Provides access to the `EntityModel` related to the JournalEntryModel.
+
+        Returns
+        -------
+        EntityModel
+            The `EntityModel` instance linked to the instance LedgerModel.
+        """
+        return self.ledger.entity
+
+    @property
     def entity_last_closing_date(self) -> Optional[date]:
         """
             Retrieves the last closing date for an entity, if available.
@@ -1231,12 +1243,15 @@ class JournalEntryModelAbstract(CreateUpdateMixIn):
                         self.activity = None
                     else:
                         role_list = self.get_txs_roles(txs_qs, exclude_cash_role=True)
-                        self.activity = self.get_activity_from_roles(role_set=role_list)
+                        self.activity = self.get_activity_from_roles(
+                            role_set=role_list,
+                            raise_exception=raise_exception
+                        )
         return self.activity
 
     # todo: add entity_model as parameter on all functions...
     # todo: outsource this function to EntityStateModel...?...
-    def _get_next_state_model(self, raise_exception: bool = True) -> EntityStateModel:
+    def _get_next_state_model(self, raise_exception: bool = True) -> Optional[EntityStateModel]:
         """
         Retrieves or creates the next state model for the Journal Entry.
 
@@ -1250,12 +1265,12 @@ class JournalEntryModelAbstract(CreateUpdateMixIn):
         EntityStateModel
             The state model with an incremented sequence.
         """
-        entity_model = EntityModel.objects.get(uuid__exact=self.ledger.entity_id)
+        entity_model = self.entity_model
         fy_key = entity_model.get_fy_for_date(dt=self.timestamp)
 
         try:
             LOOKUP = {
-                'entity_model_id__exact': self.ledger.entity_id,
+                'entity_model_id__exact': self.entity_uuid,
                 'entity_unit_id__exact': self.entity_unit_id,
                 'fiscal_year': fy_key,
                 'key__exact': EntityStateModel.KEY_JOURNAL_ENTRY
@@ -1279,6 +1294,7 @@ class JournalEntryModelAbstract(CreateUpdateMixIn):
             }
             state_model = EntityStateModel.objects.create(**LOOKUP)
             return state_model
+
         except IntegrityError as e:
             if raise_exception:
                 raise e
@@ -1521,7 +1537,7 @@ class JournalEntryModelAbstract(CreateUpdateMixIn):
 
             if verify:
                 txs_qs, is_verified = self.clean(verify=True)
-                if self.is_verified() and post_on_verify:
+                if is_verified and post_on_verify:
                     # Mark as posted if verification succeeds and posting is requested
                     self.mark_as_posted(commit=False, verify=False, force_lock=True, raise_exception=True)
 
@@ -1570,11 +1586,7 @@ class JournalEntryModelAbstract(CreateUpdateMixIn):
         str
             The URL for updating or viewing journal entry details.
         """
-        return reverse('django_ledger:je-detail', kwargs={
-            'entity_slug': self.entity_slug,
-            'ledger_pk': self.ledger_id,
-            'je_pk': self.uuid
-        })
+        return self.get_absolute_url()
 
     def get_journal_entry_list_url(self) -> str:
         """
@@ -1753,7 +1765,6 @@ class JournalEntryModel(JournalEntryModelAbstract):
     """
 
     class Meta(JournalEntryModelAbstract.Meta):
-        swappable = 'DJANGO_LEDGER_JOURNAL_ENTRY_MODEL'
         abstract = False
 
 
@@ -1764,6 +1775,7 @@ def journalentrymodel_presave(instance: JournalEntryModel, **kwargs):
             raise JournalEntryValidationError(
                 message=_(f'Cannot add Journal Entries to locked LedgerModel {instance.ledger_id}')
             )
+    instance.generate_je_number(commit=False)
 
 
 pre_save.connect(journalentrymodel_presave, sender=JournalEntryModel)

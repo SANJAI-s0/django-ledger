@@ -65,7 +65,7 @@ from django_ledger.io.roles import (
     GROUP_ASSETS, GROUP_LIABILITIES, GROUP_CAPITAL, GROUP_INCOME, GROUP_EXPENSES, GROUP_COGS,
     ROOT_GROUP, BS_BUCKETS, ROOT_ASSETS, ROOT_LIABILITIES,
     ROOT_CAPITAL, ROOT_INCOME, ROOT_EXPENSES, ROOT_COA, VALID_PARENTS,
-    ROLES_ORDER_ALL
+    ROLES_ORDER_ALL, ASSET_CA_CASH
 )
 from django_ledger.models.mixins import CreateUpdateMixIn
 from django_ledger.models.utils import lazy_loader
@@ -160,6 +160,10 @@ class AccountModelQuerySet(MP_NodeQuerySet):
         if isinstance(codes, str):
             codes = [codes]
         return self.filter(code__in=codes)
+
+    def cash(self):
+        """Retrieve accounts that are of type ASSET_CA_CASH."""
+        return self.filter(role__exact=ASSET_CA_CASH)
 
     def expenses(self):
         """
@@ -472,8 +476,35 @@ class AccountModelAbstract(MP_Node, CreateUpdateMixIn):
             x5=self.code
         )
 
+    def alt_str(self):
+        """
+        Returns a formatted string representation of the object.
+
+        The formatted string includes the code, name, role, and balance type
+        of the object. The role is converted to uppercase for consistency,
+        and the balance type is displayed as is. This method provides a
+        concise textual representation for quick identification or display.
+
+        Returns:
+            str: A formatted string in the format 'code: name (ROLE/BALANCE_TYPE)'.
+        """
+        return f'{self.code}: {self.name} ({self.role.upper()}/{self.balance_type})'
+
     @property
     def coa_slug(self):
+        """
+        Property that retrieves the `coa_slug` attribute from the object. If the attribute
+        is not found, it fetches the `slug` attribute from the `coa_model`.
+
+        Attributes:
+            _coa_slug (str): Cached value of the `coa_slug` if it exists.
+            coa_model (Any): Object containing the `slug` attribute that serves
+                as a fallback when `_coa_slug` is not present.
+
+        Returns:
+            str: The value of `_coa_slug` if defined, or the `slug` attribute from
+            `coa_model` if `_coa_slug` is not available.
+        """
         try:
             return getattr(self, '_coa_slug')
         except AttributeError:
@@ -481,6 +512,19 @@ class AccountModelAbstract(MP_Node, CreateUpdateMixIn):
 
     @property
     def entity_slug(self):
+        """
+            Retrieve the slug value associated with the entity.
+
+            This property method returns the value of the private attribute
+            '_entity_slug' for the current instance. The purpose of the
+            slug is typically to provide a URL-friendly string representing
+            the entity.
+
+            Returns
+            -------
+            Any
+                The value of the '_entity_slug' attribute.
+        """
         return getattr(self, '_entity_slug')
 
     @classmethod
@@ -1059,7 +1103,6 @@ class AccountModel(AccountModelAbstract):
     """
 
     class Meta(AccountModelAbstract.Meta):
-        swappable = 'DJANGO_LEDGER_ACCOUNT_MODEL'
         abstract = False
 
 

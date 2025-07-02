@@ -12,11 +12,11 @@ from uuid import uuid4
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q, QuerySet
+from django.db.models import Q, QuerySet, Manager
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 
-from django_ledger.models import CreateUpdateMixIn, BankAccountInfoMixIn
+from django_ledger.models import CreateUpdateMixIn, FinancialAccountInfoMixin
 from django_ledger.models.utils import lazy_loader
 
 UserModel = get_user_model()
@@ -55,10 +55,13 @@ class BankAccountModelQuerySet(QuerySet):
         return self.filter(hidden=True)
 
 
-class BankAccountModelManager(models.Manager):
+class BankAccountModelManager(Manager):
     """
     Custom defined Model Manager for the BankAccountModel.
     """
+
+    def get_queryset(self) -> BankAccountModelQuerySet:
+        return BankAccountModelQuerySet(self.model, using=self._db)
 
     def for_user(self, user_model):
         qs = self.get_queryset()
@@ -91,7 +94,7 @@ class BankAccountModelManager(models.Manager):
         )
 
 
-class BankAccountModelAbstract(BankAccountInfoMixIn, CreateUpdateMixIn):
+class BankAccountModelAbstract(FinancialAccountInfoMixin, CreateUpdateMixIn):
     """
     This is the main abstract class which the BankAccountModel database will inherit from.
     The BankAccountModel inherits functionality from the following MixIns:
@@ -108,14 +111,13 @@ class BankAccountModelAbstract(BankAccountInfoMixIn, CreateUpdateMixIn):
         A user defined name for the bank account as a String.
     entity_model: EntityModel
         The EntityModel associated with the BankAccountModel instance.
-    cash_account: AccountModel
+    account_model: AccountModel
         The AccountModel associated with the BankAccountModel instance. Must be an account with role ASSET_CA_CASH.
     active: bool
         Determines whether the BackAccountModel instance bank account is active. Defaults to True.
     hidden: bool
         Determines whether the BackAccountModel instance bank account is hidden. Defaults to False.
     """
-    REL_NAME_PREFIX = 'bank'
 
     uuid = models.UUIDField(default=uuid4, editable=False, primary_key=True)
 
@@ -124,13 +126,16 @@ class BankAccountModelAbstract(BankAccountInfoMixIn, CreateUpdateMixIn):
     entity_model = models.ForeignKey('django_ledger.EntityModel',
                                      on_delete=models.CASCADE,
                                      verbose_name=_('Entity Model'))
-    cash_account = models.ForeignKey('django_ledger.AccountModel',
-                                     on_delete=models.RESTRICT,
-                                     verbose_name=_('Cash Account'),
-                                     related_name=f'{REL_NAME_PREFIX}_cash_account')
+
+    account_model = models.ForeignKey('django_ledger.AccountModel',
+                                      on_delete=models.RESTRICT,
+                                      help_text=_(
+                                          'Account model be used to map transactions from financial institution'
+                                      ),
+                                      verbose_name=_('Associated Account Model'))
     active = models.BooleanField(default=False)
     hidden = models.BooleanField(default=False)
-    objects = BankAccountModelManager.from_queryset(queryset_class=BankAccountModelQuerySet)()
+    objects = BankAccountModelManager()
 
     def configure(self,
                   entity_slug,
@@ -165,15 +170,22 @@ class BankAccountModelAbstract(BankAccountInfoMixIn, CreateUpdateMixIn):
         verbose_name = _('Bank Account')
         indexes = [
             models.Index(fields=['account_type']),
-            models.Index(fields=['cash_account'])
+            models.Index(fields=['account_model']),
+            models.Index(fields=['entity_model'])
         ]
         unique_together = [
             ('entity_model', 'account_number'),
-            ('entity_model', 'cash_account', 'account_number', 'routing_number')
+            ('entity_model', 'account_model', 'account_number', 'routing_number')
         ]
 
     def __str__(self):
         return f'{self.get_account_type_display()} Bank Account: {self.name}'
+
+    def can_hide(self) -> bool:
+        return self.hidden is False
+
+    def can_unhide(self) -> bool:
+        return self.hidden is True
 
     def can_activate(self) -> bool:
         return self.active is False
@@ -210,5 +222,4 @@ class BankAccountModel(BankAccountModelAbstract):
     """
 
     class Meta(BankAccountModelAbstract.Meta):
-        swappable = 'DJANGO_LEDGER_BANK_ACCOUNT_MODEL'
         abstract = False

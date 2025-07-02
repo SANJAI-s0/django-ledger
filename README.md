@@ -4,7 +4,10 @@
 
 ## A Double Entry Accounting Engine for Django
 
-Django Ledger is a powerful financial management system built on the Django Web Framework. It offers a simplified API for handling complex accounting tasks in financially driven applications.
+Django Ledger is a powerful financial management system built on the Django Web Framework. It offers a simplified API
+for handling complex accounting tasks in financially driven applications.
+
+Created and developed by [Miguel Sanda](https://www.miguelsanda.com).
 
 [FREE Get Started Guide](https://www.djangoledger.com/get-started) | [Join our Discord](https://discord.gg/c7PZcbYgrc) | [Documentation](https://django-ledger.readthedocs.io/en/latest/) | [QuickStart Notebook](https://github.com/arrobalytics/django-ledger/blob/develop/notebooks/QuickStart%20Notebook.ipynb)
 
@@ -28,14 +31,19 @@ Django Ledger is a powerful financial management system built on the Django Web 
 
 ## Getting Involved
 
+All pull requests are welcome, as long as they address bugfixes, enhancements, new ideas, or add value to the project in any shape or form.
+Please refrain from submitting pull requests that focus solely on code linting, refactoring, or similar cosmetic changes.
+
 - **Feature Requests/Bug Reports**: Open an issue in the repository
-- **For software customization, advanced features and consulting services**: 
-[Contact us](https://www.miguelsanda.com/work-with-me/) or email msanda@arrobalytics.com
-- **Contribute**: See our [contribution guidelines](https://github.com/arrobalytics/django-ledger/blob/master/Contribute.md)
+- **For software customization, advanced features and consulting services**:
+  [Contact us](https://www.miguelsanda.com/work-with-me/) or email msanda@arrobalytics.com
+- **Contribute**: See
+  our [contribution guidelines](https://github.com/arrobalytics/django-ledger/blob/master/Contribute.md)
 
 ## Who Should Contribute?
 
 We're looking for contributors with:
+
 - Python and Django programming skills
 - Finance and accounting expertise
 - Interest in developing a robust accounting engine API
@@ -89,6 +97,7 @@ pipenv install "django-ledger[graphql,pdf]"
 ```
 
 Alternatively, you can use:
+
 ```shell script
 pipenv install django-ledger\[graphql,pdf\]
 ```

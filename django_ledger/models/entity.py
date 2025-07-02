@@ -1517,9 +1517,25 @@ class EntityModelAbstract(MP_Node,
         # account_model.clean()
         return coa_model, coa_model.create_account(**account_model_kwargs)
 
+    def get_account_balance(self,
+                            account_codes: List[str],
+                            to_date: Union[datetime, date, str],
+                            **kwargs):
+
+        io_context = self.digest(
+            entity_model=self.slug,
+            accounts=account_codes,
+            to_date=to_date,
+            **kwargs
+        )
+
+        return io_context
+
     # ### LEDGER MANAGEMENT ####
-    def get_ledgers(self, posted: bool = True):
-        return self.ledgermodel_set.filter(posted=posted)
+    def get_ledgers(self, posted: Optional[bool] = None):
+        if posted is not None:
+            return self.ledgermodel_set.filter(posted=posted)
+        return self.ledgermodel_set.all()
 
     # ### JOURNAL ENTRY MANAGEMENT ####
     def get_journal_entries(self, ledger_model: LedgerModel, posted: bool = True):
@@ -1983,55 +1999,68 @@ class EntityModelAbstract(MP_Node,
                             name: str,
                             account_type: str,
                             active=False,
-                            cash_account: Optional[AccountModel] = None,
+                            account_model: Optional[AccountModel] = None,
                             coa_model: Optional[Union[ChartOfAccountModel, UUID, str]] = None,
                             bank_account_model_kwargs: Optional[Dict] = None,
                             commit: bool = True):
 
         """
-        Creates a new BankAccountModel for the EntityModel instance.
-        Estimate will have DRAFT status.
+        Create a bank account entry for the entity model with specified attributes and validation.
+
+        This method creates a new instance of `BankAccountModel`, validates the
+        given inputs, and saves it to the database if `commit` is set to True.
 
         Parameters
         ----------
-        name: str
-            A user defined name for the BankAccountModel.
-        account_type: date
-            A choice of BankAccountModel.VALID_ACCOUNT_TYPES.
-        active: bool
-            Marks the account as active.
-        cash_account: AccountModel
-            Optional CASH AccountModel associated with the new InvoiceModel. Defaults to CASH default AccountModel role.
-        coa_model: ChartOfAccountModel
-            Optional ChartOfAccountsModel to use when fetching default role AccountModels.
-        commit: bool
-            If True, commits the new BankAccountModel in the Database. Defaults to True.
-        bank_account_model_kwargs: Dict
-            Additional kwargs for the new BankAccountModel instance.
+        name : str
+            The name of the bank account to be created.
+        account_type : str
+            The account type. It must be one of the valid types defined in
+            `BankAccountModel.VALID_ACCOUNT_TYPES`.
+        active : bool, optional
+            A flag indicating whether the account is active. Defaults to False.
+        account_model : Optional[AccountModel], optional
+            An optional pre-existing account model instance to link to the bank
+            account.
+        coa_model : Optional[Union[ChartOfAccountModel, UUID, str]], optional
+            The chart of account model or an identifier to filter accounts. Can
+            accept a UUID, string, or `ChartOfAccountModel`.
+        bank_account_model_kwargs : Optional[Dict], optional
+            Additional keyword arguments to initialize the `BankAccountModel`
+            instance. Defaults to an empty dictionary.
+        commit : bool, optional
+            Flag indicating whether to save the created bank account to the
+            database. Defaults to True.
 
         Returns
         -------
-        PurchaseOrderModel
-            The newly created PurchaseOrderModel in DRAFT state.
+        BankAccountModel
+            The newly created and optionally saved instance of the bank account model.
         """
 
         if bank_account_model_kwargs is None:
             bank_account_model_kwargs = dict()
+
         if account_type not in BankAccountModel.VALID_ACCOUNT_TYPES:
             raise EntityModelValidationError(
                 _(f'Invalid Account Type: choices are {BankAccountModel.VALID_ACCOUNT_TYPES}'))
+
         account_model_qs = self.get_coa_accounts(coa_model=coa_model, active=True)
         account_model_qs = account_model_qs.with_roles(
-            roles=roles_module.ASSET_CA_CASH
+            roles=[
+                BankAccountModel.ACCOUNT_TYPE_DEFAULT_ROLE_MAPPING[account_type]
+            ]
         ).is_role_default()
+
         bank_account_model = BankAccountModel(
             name=name,
             entity_model=self,
             account_type=account_type,
             active=active,
-            cash_account=account_model_qs.get() if not cash_account else cash_account,
+            account_model=account_model_qs.get() if not account_model else account_model,
             **bank_account_model_kwargs
         )
+
         bank_account_model.clean()
         if commit:
             bank_account_model.save()
@@ -2668,7 +2697,7 @@ class EntityModelAbstract(MP_Node,
 
         if cash_account:
             if isinstance(cash_account, BankAccountModel):
-                cash_account = cash_account.cash_account
+                cash_account = cash_account.account_model
             self.validate_account_model_for_coa(account_model=cash_account, coa_model=coa_model)
             self.validate_account_model_for_role(cash_account, roles_module.ASSET_CA_CASH)
         else:
@@ -3120,10 +3149,9 @@ class EntityModel(EntityModelAbstract):
     """
     Entity Model Base Class From Abstract
     """
-    class Meta(EntityModelAbstract.Meta):
-        swappable = 'DJANGO_LEDGER_ENTITY_MODEL'
-        abstract = False
 
+    class Meta(EntityModelAbstract.Meta):
+        abstract = False
 
 
 # ## ENTITY STATE....
@@ -3189,7 +3217,6 @@ class EntityStateModel(EntityStateModelAbstract):
     """
 
     class Meta(EntityStateModelAbstract.Meta):
-        swappable = 'DJANGO_LEDGER_ENTITY_STATE_MODEL'
         abstract = False
 
 
