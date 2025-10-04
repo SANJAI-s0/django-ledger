@@ -8,6 +8,7 @@
             <th class="has-text-centered">{% trans 'Customer Number' %}</th>
             <th class="has-text-centered">{% trans 'Customer' %}</th>
             <th class="has-text-centered">{% trans 'Address' %}</th>
+            <th class="has-text-centered">{% trans 'Customer Code' %}</th>
             <th class="has-text-centered">{% trans 'Active' %}</th>
             <th class="has-text-centered">{% trans 'Hidden' %}</th>
             <th class="has-text-centered">{% trans 'Actions' %}</th>
@@ -17,26 +18,27 @@
         {% for customer in customers %}
             <tr class="has-text-centered">
                 <td>{{ customer.customer_number }}</td>
-                <td>{{ customer.customer_name }}</td>
-                <td>{{ customer.address_1 }}</td>
+                <td><a href="{% url 'django_ledger:customer-detail' entity_slug=view.kwargs.entity_slug customer_pk=customer.uuid %}">{{ customer.customer_name }}</a></td>
+                <td>{% if customer.address_1 %}{{ customer.address_1 }}{% endif %}</td>
+                <td>{% if customer.customer_code %}{{ customer.customer_code }}{% endif %}</td>
                 <td>
                     {% if customer.active %}
-                        <span class="icon has-text-success-dark">
+                        <span class="icon has-text-success">
                                         {% icon 'ant-design:check-circle-filled' 24 %}
                                     </span>
                     {% elif not customer.active %}
-                        <span class="icon has-text-danger-dark">
+                        <span class="icon has-text-danger">
                                         {% icon 'mdi:dangerous' 24 %}
                                     </span>
                     {% endif %}
                 </td>
                 <td>
                     {% if customer.hidden %}
-                        <span class="icon has-text-success-dark">
+                        <span class="icon has-text-success">
                                         {% icon 'ant-design:check-circle-filled' 24 %}
                                     </span>
                     {% elif not customer.hidden %}
-                        <span class="icon has-text-danger-dark">
+                        <span class="icon has-text-danger">
                                         {% icon 'mdi:dangerous' 24 %}
                                     </span>
                     {% endif %}
@@ -59,6 +61,8 @@
                              id="dropdown-menu-{{ customer.uuid }}"
                              role="menu">
                             <div class="dropdown-content">
+                                <a href="{% url 'django_ledger:customer-detail' entity_slug=view.kwargs.entity_slug customer_pk=customer.uuid %}"
+                                   class="dropdown-item has-text-weight-bold has-text-success">{% trans 'View' %}</a>
                                 <a href="{% url 'django_ledger:customer-update' entity_slug=view.kwargs.entity_slug customer_pk=customer.uuid %}"
                                    class="dropdown-item has-text-weight-bold has-text-info">{% trans 'Update' %}</a>
                             </div>
